@@ -1,0 +1,26 @@
+syntax = "proto3";
+package api;
+
+message PutRequest {
+    bytes Data = 1;
+    int64 Width = 2;
+    int64 Height = 3;
+    string Class = 4;
+}
+
+message PutResponse {
+    string Name = 1;
+}
+
+message GetRequest {
+    string Name = 1;
+}
+
+message GetResponse {
+    bytes Data = 1;
+}
+
+service ImageService {
+    rpc PutImage(PutRequest) returns (PutResponse) {};
+    rpc GetImage(GetRequest) returns (GetResponse) {};
+}
