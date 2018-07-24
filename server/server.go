@@ -8,12 +8,12 @@ import (
 	"google.golang.org/grpc"
 )
 
-func NewServer(addr string, root string, sizeLimit int) (*grpc.Server, error) {
+func NewServer(addr string, root string, sizeLimit int, logPath string) (*grpc.Server, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	s, err := api.NewServer(root, sizeLimit)
+	s, err := api.NewServer(root, sizeLimit, logPath)
 	if err != nil {
 		return nil, err
 	}
