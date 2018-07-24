@@ -10,8 +10,12 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/wangjun861205/nblogger"
 
 	"github.com/disintegration/imaging"
 
@@ -21,44 +25,60 @@ import (
 type Server struct {
 	root      string
 	sizeLimit int
+	logger    nblogger.Logger
 }
 
 var allImageType string
 
-func NewServer(root string, sizeLimit int) (*Server, error) {
+func NewServer(root string, sizeLimit int, logPath string) (*Server, error) {
 	err := createDirIfNotExist(root)
 	if err != nil {
 		return nil, err
 	}
-	return &Server{root, sizeLimit}, nil
+	err = createDirIfNotExist(logPath)
+	if err != nil {
+		return nil, err
+	}
+	logger, err := nblogger.NewLogger(logPath, "image service", log.Ltime|log.Llongfile, 1*time.Minute, 200*nblogger.M, 5)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{root, sizeLimit, logger}, nil
 }
 
 func (s *Server) PutImage(ctx context.Context, req *PutRequest) (*PutResponse, error) {
 	decoder := base64.NewDecoder(base64.StdEncoding, bytes.NewReader(req.Data))
 	imgData, err := ioutil.ReadAll(decoder)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	if len(imgData) > s.sizeLimit {
-		return nil, fmt.Errorf("file size (%d) excess the max size (%d)", len(imgData), s.sizeLimit)
+		err := fmt.Errorf("file size (%d) excess the max size (%d)", len(imgData), s.sizeLimit)
+		s.logger.Log(err)
+		return nil, err
 	}
 	processedData, format, err := processImage(imgData, int(req.Width), int(req.Height))
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	err = createDirIfNotExist(filepath.Join(s.root, req.Class))
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	baseName := fmt.Sprintf("%x.%s", md5.Sum(processedData), format)
 	fileName := filepath.Join(s.root, req.Class, baseName)
 	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0775)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	defer f.Close()
 	_, err = f.Write(processedData)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	return &PutResponse{Name: fileName}, nil
@@ -67,18 +87,23 @@ func (s *Server) PutImage(ctx context.Context, req *PutRequest) (*PutResponse, e
 func (s *Server) GetImage(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	info, err := os.Stat(req.Name)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	if info.IsDir() {
-		return nil, fmt.Errorf("%s is not valid file path", req.Name)
+		err := fmt.Errorf("%s is not valid file path", req.Name)
+		s.logger.Log(err)
+		return nil, err
 	}
 	f, err := os.Open(req.Name)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	defer f.Close()
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	buffer := bytes.NewBuffer(make([]byte, 0, s.sizeLimit*2))
@@ -86,6 +111,7 @@ func (s *Server) GetImage(ctx context.Context, req *GetRequest) (*GetResponse, e
 	defer encoder.Close()
 	_, err = encoder.Write(b)
 	if err != nil {
+		s.logger.Log(err)
 		return nil, err
 	}
 	return &GetResponse{Data: buffer.Bytes()}, nil
