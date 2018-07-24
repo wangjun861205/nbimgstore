@@ -1,26 +1,22 @@
 package server
 
 import (
-	"log"
 	"net"
 
 	"../api"
 	"google.golang.org/grpc"
 )
 
-func NewServer(addr string, root string, sizeLimit int, logPath string) (*grpc.Server, error) {
+func Serve(addr string, root string, sizeLimit int, logPath string) error {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s, err := api.NewServer(root, sizeLimit, logPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	grpcServer := grpc.NewServer()
 	api.RegisterImageServiceServer(grpcServer, s)
-	go func() {
-		log.Fatal(grpcServer.Serve(l))
-	}()
-	return grpcServer, nil
+	return grpcServer.Serve(l)
 }
